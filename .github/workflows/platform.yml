@@ -1,0 +1,31 @@
+name: Platform Pipeline
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Kustomize
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/kustomize/v5.7.1/hack/install_kustomize.sh | bash
+          sudo mv kustomize /usr/local/bin/kustomize
+      - run: kustomize build platform/clusters/prod > /tmp/prod.yaml
+      - run: kustomize build platform/argocd > /tmp/argocd.yaml
+      - name: Parse YAML
+        run: |
+          python3 - <<'PY'
+          import yaml
+          from pathlib import Path
+          for p in Path('platform').rglob('*.yaml'):
+              list(yaml.safe_load_all(p.read_text()))
+          print('YAML syntax OK')
+          PY
+      - run: |
+          grep -RE 'kind: (Application|AppProject)' platform/argocd >/dev/null

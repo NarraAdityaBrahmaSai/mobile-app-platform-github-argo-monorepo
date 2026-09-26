@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - projects/product.yaml
+  - applications/platform-addons.yaml
+  - applications/backend.yaml
+  - applications/addons.yaml
+  - repo-settings.yaml
+replacements:
+  - source:
+      kind: ConfigMap
+      name: argocd-repo-settings
+      fieldPath: data.repoURL
+    targets:
+      - select:
+          kind: Application
+        fieldPaths:
+          - spec.source.repoURL
+      - select:
+          kind: AppProject
+          name: product
+        fieldPaths:
+          - spec.sourceRepos.0

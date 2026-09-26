@@ -1,0 +1,93 @@
+name: Android Pipeline
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - working-directory: app/android
+        run: gradle --no-daemon testDebug
+
+  build-internal:
+    if: startsWith(github.ref, 'refs/tags/android-v')
+    needs: test
+    runs-on: ubuntu-24.04
+    environment: android-internal
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Configure signing
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_B64" | base64 --decode > app/android/release.keystore
+          echo "ANDROID_KEYSTORE_FILE=$GITHUB_WORKSPACE/app/android/release.keystore" >> "$GITHUB_ENV"
+      - name: Build signed AAB
+        working-directory: app/android
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: ${{ github.ref_name }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle --no-daemon bundleRelease
+      - uses: actions/upload-artifact@v5
+        with:
+          name: android-aab-${{ github.ref_name }}
+          path: app/android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
+      - name: Upload exact AAB to internal
+        working-directory: app/android
+        env:
+          PLAY_PACKAGE_NAME: ${{ vars.PLAY_PACKAGE_NAME }}
+          GOOGLE_PLAY_JSON: ${{ secrets.GOOGLE_PLAY_JSON }}
+          AAB_PATH: ${{ github.workspace }}/app/android/app/build/outputs/bundle/release/app-release.aab
+        run: bundle install --jobs 4 --retry 3 && bundle exec fastlane android internal
+
+  production:
+    if: startsWith(github.ref, 'refs/tags/android-v')
+    needs: build-internal
+    runs-on: ubuntu-24.04
+    environment: android-production
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          name: android-aab-${{ github.ref_name }}
+          path: app/android/app/build/outputs/bundle/release
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+          working-directory: app/android
+      - working-directory: app/android
+        env:
+          PLAY_PACKAGE_NAME: ${{ vars.PLAY_PACKAGE_NAME }}
+          GOOGLE_PLAY_JSON: ${{ secrets.GOOGLE_PLAY_JSON }}
+          AAB_PATH: ${{ github.workspace }}/app/android/app/build/outputs/bundle/release/app-release.aab
+          PLAY_ROLLOUT_FRACTION: ${{ vars.PLAY_ROLLOUT_FRACTION }}
+        run: bundle exec fastlane android production

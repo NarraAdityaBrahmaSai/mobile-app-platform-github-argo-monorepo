@@ -1,0 +1,83 @@
+name: Infrastructure Pipeline
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_IN_AUTOMATION: 'true'
+  TF_INPUT: 'false'
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+  TF_VAR_aws_region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+  TF_VAR_project_name: ${{ vars.TF_PROJECT_NAME }}
+  TF_VAR_environment: ${{ vars.TF_ENVIRONMENT }}
+  TF_VAR_azs: ${{ vars.TF_AZS_JSON }}
+  TF_VAR_eks_version: ${{ vars.TF_EKS_VERSION }}
+  TF_VAR_platform_admin_role_arn: ${{ vars.TF_PLATFORM_ADMIN_ROLE_ARN }}
+  TF_VAR_domain_name: ${{ vars.TF_DOMAIN_NAME }}
+  TF_VAR_web_bucket_name: ${{ vars.TF_WEB_BUCKET_NAME }}
+  TF_VAR_cloudfront_certificate_arn: ${{ vars.TF_CLOUDFRONT_CERTIFICATE_ARN }}
+  TF_VAR_github_org: ${{ github.repository_owner }}
+  TF_VAR_github_repo: ${{ github.event.repository.name }}
+  TF_VAR_github_infra_policy_arns: ${{ vars.TF_GITHUB_INFRA_POLICY_ARNS_JSON }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.13.4'
+      - run: terraform -chdir=infra/live/prod fmt -check -recursive
+      - run: terraform -chdir=infra/live/prod init -backend=false
+      - run: terraform -chdir=infra/live/prod validate
+
+  plan:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.13.4'
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-tf-plan-${{ github.run_id }}
+      - run: terraform -chdir=infra/live/prod init
+      - run: terraform -chdir=infra/live/prod plan -out=prod.tfplan
+      - uses: actions/upload-artifact@v5
+        with:
+          name: terraform-plan
+          path: infra/live/prod/prod.tfplan
+          retention-days: 2
+
+  apply-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: plan
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.13.4'
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-tf-apply-${{ github.run_id }}
+      - uses: actions/download-artifact@v5
+        with:
+          name: terraform-plan
+          path: infra/live/prod
+      - run: terraform -chdir=infra/live/prod init
+      - run: terraform -chdir=infra/live/prod apply -auto-approve prod.tfplan

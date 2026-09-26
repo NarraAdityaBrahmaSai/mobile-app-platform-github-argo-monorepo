@@ -1,0 +1,28 @@
+
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: product
+  namespace: argocd
+spec:
+  description: Mobile platform production workloads
+  sourceRepos:
+    - https://github.com/<GITHUB_OWNER>/<GITHUB_REPOSITORY_NAME>.git
+    - https://aws.github.io/eks-charts
+    - https://charts.external-secrets.io
+    - https://prometheus-community.github.io/helm-charts
+    - https://open-telemetry.github.io/opentelemetry-helm-charts
+  destinations:
+    - {namespace: product, server: https://kubernetes.default.svc}
+    - {namespace: ingress-system, server: https://kubernetes.default.svc}
+    - {namespace: external-secrets-system, server: https://kubernetes.default.svc}
+    - {namespace: observability, server: https://kubernetes.default.svc}
+  clusterResourceWhitelist:
+    - {group: '', kind: Namespace}
+    - {group: rbac.authorization.k8s.io, kind: ClusterRole}
+    - {group: rbac.authorization.k8s.io, kind: ClusterRoleBinding}
+    - {group: admissionregistration.k8s.io, kind: ValidatingWebhookConfiguration}
+    - {group: admissionregistration.k8s.io, kind: MutatingWebhookConfiguration}
+    - {group: apiextensions.k8s.io, kind: CustomResourceDefinition}
+  namespaceResourceWhitelist:
+    - {group: '*', kind: '*'}

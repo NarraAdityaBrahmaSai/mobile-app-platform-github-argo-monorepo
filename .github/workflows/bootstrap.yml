@@ -1,0 +1,26 @@
+name: Bootstrap Argo CD
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  bootstrap:
+    runs-on: [self-hosted, aws-private]
+    environment: production-bootstrap
+    steps:
+      - uses: actions/checkout@v6
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_ARGOCD_BOOTSTRAP_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+          role-session-name: gha-argocd-bootstrap-${{ github.run_id }}
+      - env:
+          EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+        run: ./scripts/bootstrap-argocd.sh

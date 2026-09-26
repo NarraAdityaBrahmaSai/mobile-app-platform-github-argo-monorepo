@@ -1,0 +1,6 @@
+# Replace @YOUR_GITHUB_OWNER with your actual GitHub user/team before enabling required review rules.
+* @YOUR_GITHUB_OWNER
+/app/ @YOUR_GITHUB_OWNER
+/infra/ @YOUR_GITHUB_OWNER
+/platform/ @YOUR_GITHUB_OWNER
+/.github/ @YOUR_GITHUB_OWNER

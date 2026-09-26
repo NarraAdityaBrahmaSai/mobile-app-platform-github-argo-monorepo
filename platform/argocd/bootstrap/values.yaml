@@ -1,0 +1,10 @@
+
+configs:
+  params:
+    server.insecure: "false"
+server:
+  ingress: {enabled: false}
+controller: {replicas: 2}
+repoServer: {replicas: 2}
+applicationSet: {replicas: 2}
+redis-ha: {enabled: true}

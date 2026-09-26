@@ -1,0 +1,130 @@
+name: Main Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: [android-v*]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: read
+
+concurrency:
+  group: main-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    name: Detect changed areas
+    runs-on: ubuntu-24.04
+    outputs:
+      backend: ${{ steps.detect.outputs.backend }}
+      web: ${{ steps.detect.outputs.web }}
+      android: ${{ steps.detect.outputs.android }}
+      infra: ${{ steps.detect.outputs.infra }}
+      platform: ${{ steps.detect.outputs.platform }}
+      security: ${{ steps.detect.outputs.security }}
+      full: ${{ steps.detect.outputs.full }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: detect
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          backend=false
+          web=false
+          android=false
+          infra=false
+          platform=false
+          security=false
+          full=false
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            backend=true; web=true; android=true; infra=true; platform=true; security=true; full=true
+          elif [[ "$REF_NAME" == refs/tags/android-v* ]]; then
+            android=true; security=true
+          else
+            if [[ "$EVENT_NAME" == "pull_request" ]]; then
+              base="$PR_BASE_SHA"
+            else
+              base="$BEFORE_SHA"
+            fi
+
+            if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+              backend=true; web=true; android=true; infra=true; platform=true; security=true; full=true
+            else
+              mapfile -t changed < <(git diff --name-only "$base" "$CURRENT_SHA")
+              printf 'Changed files:\n'
+              printf '%s\n' "${changed[@]:-<none>}"
+
+              for file in "${changed[@]}"; do
+                case "$file" in
+                  app/backend/*|scripts/promote-gitops.sh) backend=true ;;
+                  app/web/*) web=true ;;
+                  app/android/*) android=true ;;
+                  infra/*) infra=true ;;
+                  platform/*) platform=true ;;
+                esac
+
+                if [[ "$file" == .github/workflows/* || "$file" == scripts/* || "$file" == app/* || "$file" == infra/* || "$file" == platform/* ]]; then
+                  security=true
+                fi
+
+                if [[ "$file" == .github/workflows/* ]]; then
+                  backend=true; web=true; android=true; infra=true; platform=true; security=true; full=true
+                fi
+              done
+            fi
+          fi
+
+          for name in backend web android infra platform security full; do
+            printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_OUTPUT"
+          done
+
+  security:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.security == 'true'
+    uses: ./.github/workflows/security.yml
+    secrets: inherit
+
+  backend:
+    needs: [detect-changes, security]
+    if: ${{ always() && needs.detect-changes.outputs.backend == 'true' && (needs.security.result == 'success' || needs.security.result == 'skipped') }}
+    uses: ./.github/workflows/backend.yml
+    secrets: inherit
+
+  web:
+    needs: [detect-changes, security]
+    if: ${{ always() && needs.detect-changes.outputs.web == 'true' && (needs.security.result == 'success' || needs.security.result == 'skipped') }}
+    uses: ./.github/workflows/web.yml
+    secrets: inherit
+
+  android:
+    needs: [detect-changes, security]
+    if: ${{ always() && needs.detect-changes.outputs.android == 'true' && (needs.security.result == 'success' || needs.security.result == 'skipped') }}
+    uses: ./.github/workflows/android.yml
+    secrets: inherit
+
+  infrastructure:
+    needs: [detect-changes, security]
+    if: ${{ always() && needs.detect-changes.outputs.infra == 'true' && (needs.security.result == 'success' || needs.security.result == 'skipped') }}
+    uses: ./.github/workflows/infra.yml
+    secrets: inherit
+
+  platform:
+    needs: [detect-changes, security]
+    if: ${{ always() && needs.detect-changes.outputs.platform == 'true' && (needs.security.result == 'success' || needs.security.result == 'skipped') }}
+    uses: ./.github/workflows/platform.yml
+    secrets: inherit

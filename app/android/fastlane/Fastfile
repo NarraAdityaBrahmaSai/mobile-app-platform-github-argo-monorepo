@@ -1,0 +1,30 @@
+default_platform(:android)
+
+platform :android do
+  desc "Upload to Google Play internal testing"
+  lane :internal do
+    upload_to_play_store(
+      package_name: ENV.fetch("PLAY_PACKAGE_NAME"),
+      json_key_data: ENV.fetch("GOOGLE_PLAY_JSON"),
+      track: "internal",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Promote an existing release to production"
+  lane :production do
+    upload_to_play_store(
+      package_name: ENV.fetch("PLAY_PACKAGE_NAME"),
+      json_key_data: ENV.fetch("GOOGLE_PLAY_JSON"),
+      track: "production",
+      aab: ENV.fetch("AAB_PATH"),
+      rollout: ENV.fetch("PLAY_ROLLOUT_FRACTION"),
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end

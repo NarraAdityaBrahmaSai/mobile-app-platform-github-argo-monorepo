@@ -1,0 +1,12 @@
+aws_region = "ap-south-1"
+project_name = "mobile-platform"
+environment = "prod"
+azs = ["ap-south-1a", "ap-south-1b", "ap-south-1c"]
+eks_version = "1.33"
+platform_admin_role_arn = "arn:aws:iam::<ACCOUNT_ID>:role/platform-break-glass"
+domain_name = "app.example.com"
+web_bucket_name = "mobile-platform-prod-web-<UNIQUE_SUFFIX>"
+cloudfront_certificate_arn = "arn:aws:acm:us-east-1:<ACCOUNT_ID>:certificate/<CERT_ID>"
+github_org = "<GITHUB_OWNER>"
+github_repo = "mobile-platform-github-argo"
+github_infra_policy_arns = []

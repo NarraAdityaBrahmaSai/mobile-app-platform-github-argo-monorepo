@@ -1,0 +1,31 @@
+# Terraform
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+crash.log
+
+# Android / Gradle
+**/.gradle/
+**/build/
+**/local.properties
+**/*.keystore
+**/*.jks
+
+# Node
+**/node_modules/
+**/dist/
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Local environment
+.env
+.env.*
+!.env.example

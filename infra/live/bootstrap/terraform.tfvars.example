@@ -1,0 +1,4 @@
+aws_region       = "ap-south-1"
+project_name     = "mobile-platform"
+state_bucket_name = "replace-with-a-globally-unique-state-bucket-name"
+lock_table_name  = "mobile-platform-terraform-lock"
