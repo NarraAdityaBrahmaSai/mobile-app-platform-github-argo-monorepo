@@ -75,7 +75,7 @@ jobs:
           role-to-assume: ${{ vars.AWS_INFRA_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-tf-apply-${{ github.run_id }}
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: terraform-plan
           path: infra/live/prod
