@@ -75,7 +75,7 @@ jobs:
     environment: android-production
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: android-aab-${{ github.ref_name }}
           path: app/android/app/build/outputs/bundle/release
